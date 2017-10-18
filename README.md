@@ -1,2 +1,2 @@
 # fastASE
-This project calls the differential alternative splicing events incluing Exon Skipping, Mutually Exclusive Exons, Alternative 3' Splilcing Site, Alternative 5' Splicing Site, Intron Retention, Alternative First Exon, Alternative Last Exon and complicated splicing events.
+This project calls the differential alternative splicing events incluing Exon Skipping(ES), Mutually Exclusive Exons(MXE), Alternative 3' Splilcing Site(A3SS), Alternative 5' Splicing Site(A5SS), Intron Retention(IR), Alternative First Exon(AFE), Alternative Last Exon(ALE) and Complicated Splicing Events(CSE). 
