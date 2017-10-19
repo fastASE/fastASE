@@ -93,7 +93,7 @@ open SPL,'>', $out_junc_path or die "Failed to open junction file $out_junc_path
 print SPL "Chrmosome\tStrand\tJunction\t",join( "\t",@sample),"\n";
 
 #########I/O File
-open FILE, "awk '(\$1 !~ /^\#|\_/ && \$2 != \"havana\"){print}' $gtf_path |" or die "Failed to open gtf file $gtf_path: No such file or directory. Exiting";
+open FILE, "awk '(\$1 !~ /^\#|\_/ && \$2 != \"havana\"){print}' $gtf_path  |" or die "Failed to open gtf file $gtf_path: No such file or directory. Exiting";
 open MERGE, '>',$out_merge_path or die "Failed to open merge transcripts file $out_merge_path: No such file or directory. Exiting";
 open OUT,'>',$out_splice_path or die "Failed to alternative splicing file $out_splice_path: No such file or directory. Exiting";
 print OUT "gene_id\tgene_name\tchromosome\tstrand\tsplicingType\tfixSplicingSite\tpercentDiff\tpvalue\tqvalue\talterSplicingSite, readCount($condition[0]|$condition[1]), percentage($condition[0]|$condition[1])\n";
@@ -202,10 +202,11 @@ for my $i (0..$#gene){
 }
 
 
-
+$R->stop();
+my $R2 = Statistics::R->new();
 print scalar localtime,"\n";
 print "Qvalue Calculating...\n";
-$R->run($qval_cmds);			####calculate the qvalue in R
+$R2->run($qval_cmds);			####calculate the qvalue in R
 
 
 sub annoExon2{
