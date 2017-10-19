@@ -27,7 +27,10 @@ my %repNum;
 my @condition;
 my %gene;
 my @gene;
-my ($flag1,$flag2) = (0,0);
+my %flag1 = ("+" => {"fr-secondstrand" => 99,"fr-firststrand" => 83,"fr-unstranded" => 0},
+		  "-" => {"fr-secondstrand" => 83,"fr-firststrand" => 99,"fr-unstranded" => 0});
+my %flag2 = ("+" => {"fr-secondstrand" => 147 ,"fr-firststrand" => 163,"fr-unstranded" => 0},
+		  "-" => {"fr-secondstrand" => 163,"fr-firststrand" => 147,"fr-unstranded" => 0});
 
 #####SET the parameter
 &setArgv;
@@ -43,8 +46,6 @@ my $cmds = <<EOF;
 alle=matrix(x,nrow=2)
 pvalue=chisq.test(alle)\$p.value
 EOF
-
-
 my $qval_cmds = <<EOF;
 library(qvalue)
 table <- read.csv("$out_splice_path",header=TRUE,sep="\t",check.names=FALSE)
@@ -53,11 +54,10 @@ qvalue <- qobj\$qvalues
 table\$qvalue<-as.numeric(qvalue)
 write.table(table,"$out_splice_path",quote = FALSE,row.names=FALSE,col.names=TRUE,sep="\t", qmethod = "escape")
 EOF
-
 ######End R Commands
-
 # Create a communication bridge with R and start R
 my $R = Statistics::R->new();
+
 
 
 ######Set the global argument value;
@@ -90,7 +90,7 @@ print "Sample: @sample\n";
 print "sizeFactor: @size_factor\n";
 
 open SPL,'>', $out_junc_path or die "Failed to open junction file $out_junc_path: No such file or directory. Exiting";
-print SPL "Junction\t",join( "\t",@sample),"\n";
+print SPL "Chrmosome\tStrand\tJunction\t",join( "\t",@sample),"\n";
 
 #########I/O File
 open FILE, "awk '(\$1 !~ /^\#|\_/ && \$2 != \"havana\"){print}' $gtf_path |" or die "Failed to open gtf file $gtf_path: No such file or directory. Exiting";
@@ -136,21 +136,13 @@ for my $i (0..$#gene){
 	my ($chr,$source,$strand,$gene_name) = ($val->{'chr'},$val->{'source'},$val->{'strand'},$val->{'gene_name'});
 	if ($chr !~ /^chr/){
 		$chr = "chr$chr";
-	}
-	if ($chr eq "chrMT"){
-		$chr = "chrM";
+		if ($chr eq "chrMT"){
+			$chr = "chrM";
+		}
 	}
 
 	my ($junc_ref,$anno_ref,$dpsi_ref,$pval_ref);
 	if($strand eq "+"){
-		if($libType eq "fr-secondstrand"){
-			($flag1,$flag2) = (99,147);
-		}
-		elsif($libType eq "fr-firststrand"){
-			($flag1,$flag2) = (83,163);
-		}
-
-
 		@merge = sort{$a<=>$b} @merge;
 		my $exon_num = 1;
 		my @exon5p;
@@ -170,19 +162,11 @@ for my $i (0..$#gene){
 		}
 		push @exon3p, $merge[-1];
 		print MERGE "$chr\t$source\_MERGE\texon\t$exonStr\t$merge[-1]\t.\t$strand\t.\tgene_id \"$gene_id\"; exon_number \"$exon_num\"; gene_name \"$gene_name\";\n";
-		($junc_ref) = &junction($chr,$merge[0],$merge[-1]);
-		($anno_ref,$dpsi_ref,$pval_ref) = &annoExon($junc_ref,\@exon5p,\@exon3p,$chr);
+		($junc_ref) = &junction($chr,$strand,$merge[0],$merge[-1]);
+		($anno_ref,$dpsi_ref,$pval_ref) = &annoExon($junc_ref,\@exon5p,\@exon3p,$chr,$strand);
 	}
 
 	else{
-		if($libType eq "fr-secondstrand"){
-			($flag1,$flag2) = (83,163);
-		}
-		elsif($libType eq "fr-firststrand"){
-			($flag1,$flag2) = (99,147);
-		}
-
-
 		@merge = sort{$b<=>$a} @merge;
 		my $exon_num = 1;
 		my @exon5p;
@@ -202,8 +186,8 @@ for my $i (0..$#gene){
 		}
 		push @exon3p, $merge[-1];
 		print MERGE "$chr\t$source\_MERGE\texon\t$merge[-1]\t$exonEnd\t.\t$strand\t.\tgene_id \"$gene_id\"; exon_number \"$exon_num\"; gene_name \"$gene_name\";\n";
-		($junc_ref) = &junction($chr,$merge[-1],$merge[0]);
-		($anno_ref,$dpsi_ref,$pval_ref) = &annoExon2($junc_ref,\@exon5p,\@exon3p,$chr);
+		($junc_ref) = &junction($chr,$strand,$merge[-1],$merge[0]);
+		($anno_ref,$dpsi_ref,$pval_ref) = &annoExon2($junc_ref,\@exon5p,\@exon3p,$chr,$strand);
 	}
 
 	foreach my $junc1 (sort (keys %$anno_ref)){
@@ -225,7 +209,7 @@ $R->run($qval_cmds);			####calculate the qvalue in R
 
 
 sub annoExon2{
-	my ($junc_ref,$exon5p,$exon3p,$chr) = @_;
+	my ($junc_ref,$exon5p,$exon3p,$chr,$strand) = @_;
 	my %alter;   ####return value;
 	my %sum;
 	my %retention;
@@ -266,13 +250,13 @@ sub annoExon2{
 	}
 
 	my ($alter_r,$deltapsi_r,$pvalue_r) = &stat(\%alter,\%sum);
-	($alter_r,$deltapsi_r,$pvalue_r) = &stat_retention(\%retention,$chr,$alter_r,$deltapsi_r,$pvalue_r);
+	($alter_r,$deltapsi_r,$pvalue_r) = &stat_retention(\%retention,$chr,$strand,$alter_r,$deltapsi_r,$pvalue_r);
 	return ($alter_r,$deltapsi_r,$pvalue_r);
 }
 
 
 sub annoExon{
-	my ($junc_ref,$exon5p,$exon3p,$chr,$flag1,$flag2) = @_;
+	my ($junc_ref,$exon5p,$exon3p,$chr,$strand) = @_;
 	my %alter;   ####return value;
 	my %sum;
 	my %retention;
@@ -313,7 +297,7 @@ sub annoExon{
 	}
 
 	my ($alter_r,$deltapsi_r,$pvalue_r) = &stat(\%alter,\%sum);
-	($alter_r,$deltapsi_r,$pvalue_r) = &stat_retention(\%retention,$chr,$alter_r,$deltapsi_r,$pvalue_r);
+	($alter_r,$deltapsi_r,$pvalue_r) = &stat_retention(\%retention,$chr,$strand,$alter_r,$deltapsi_r,$pvalue_r);
 	return ($alter_r,$deltapsi_r,$pvalue_r);
 }
 
@@ -356,10 +340,12 @@ sub stat{
 
 
 sub stat_retention{
-	my ($retention_r,$chr,$alter_r,$deltapsi_r,$pvalue_r) = @_;
+	my ($retention_r,$chr,$strand,$alter_r,$deltapsi_r,$pvalue_r) = @_;
 	while(my ($key,$val) = each %$retention_r){
-		my @sum;
+		my @sum = (0)x@sample;
 		my %reten_count;
+		$reten_count{$condition[0]} = 0;
+		$reten_count{$condition[1]} = 0;
 		my $reten_num = 0;
 		my @count;
 		my @total;
@@ -371,7 +357,7 @@ sub stat_retention{
 			foreach my $junc (@junc){
 				my $pos = $junc-$SJOverhangMin+1;    #####The same overhang
 				for(my $i=0;$i<@sample;$i++){
-					open BAM, "samtools view -q $mapq $sample[$i] $chr:$pos-$pos | awk '(\$6 !~ \"N\" && (\$2 != $flag1 && \$2 != $flag2) && \$6 !~ \"S\" && \$6 !~ \"D\" && \$6 !~ \"I\"){print \$4,\$6}' | ";
+					open BAM, "samtools view -q $mapq $sample[$i] $chr:$pos-$pos | awk '(\$6 !~ \"N\" && (\$2 != $flag1{$strand}->{$libType} && \$2 != $flag2{$strand}->{$libType}) && \$6 !~ \"S\" && \$6 !~ \"D\" && \$6 !~ \"I\"){print \$4,\$6}' | ";
 					while(<BAM>){
 						my ($str,$CIGAR) = split;
 						my $readLen = substr($CIGAR,0,-1);
@@ -421,12 +407,12 @@ sub stat_retention{
 
 
 sub junction{
-	my ($chr,$str,$end) = @_;
+	my ($chr,$strand,$str,$end) = @_;
 	my %junc;
 	my %ave_junc;  ###return value;
 
 	for(my $i=0;$i<@sample;$i++){
-		open BAM, "samtools view -q $mapq $sample[$i] $chr:$str-$end | awk '(\$6 ~ \"N\" && (\$2 != $flag1 && \$2 != $flag2) && \$6 !~ \"S\" && \$6 !~ \"D\" && \$6 !~ \"I\"){print \$4,\$6}' | ";
+		open BAM, "samtools view -q $mapq $sample[$i] $chr:$str-$end | awk '(\$6 ~ \"N\" && (\$2 != $flag1{$strand}->{$libType} && \$2 != $flag2{$strand}->{$libType}) && \$6 !~ \"S\" && \$6 !~ \"D\" && \$6 !~ \"I\"){print \$4,\$6}' | ";
 		while(<BAM>){
 			my ($str,$CIGAR) = split;
 			my ($exon1,$exon2,$exon3,$str2,$str3,$end1,$end2,$end3);
@@ -473,7 +459,8 @@ sub junction{
 		while(my ($k,$v) = each %sum){
 			$ave_junc{$key}->{$k} = round($v/$repNum{$k});
 		}
-		print SPL "$chr\t$key";
+		print SPL "$chr\t$strand\t$key";
+
 		for my $i (0..$#sample){
 			print SPL "\t$junc{$key}->[$i]";
 		}
@@ -481,7 +468,6 @@ sub junction{
 	}
 	return (\%ave_junc);
 }
-
 
 
 sub setArgv{
