@@ -15,15 +15,15 @@ my $SJOverhangMin = 3;
 my $readCountMin  = 10;
 my $mapq          = 30;
 my $libType = ("fr-unstranded");
-my $list_path = '';
-my $gtf_path  = '';
-my $out_dir = './';
+my $list_path = 'sample_list';
+my $gtf_path  = 'top_gene.gtf';
+my $out_dir = '';
 
 ##########Initial the global value;
 my %sample;
 my @sample;
 my @size_factor;
-my %con_count;
+my %repNum;
 my @condition;
 my %gene;
 my @gene;
@@ -47,13 +47,10 @@ EOF
 
 my $qval_cmds = <<EOF;
 library(qvalue)
-pdf("Qobj_pvalue.pdf")
 table <- read.csv("$out_splice_path",header=TRUE,sep="\t",check.names=FALSE)
 qobj <- qvalue(p = table\$pvalue)
-plot(qobj)
 qvalue <- qobj\$qvalues
 table\$qvalue<-as.numeric(qvalue)
-hist(table\$qvalue, breaks=1000, col="skyblue", border="slateblue", main="qvalue")
 write.table(table,"$out_splice_path",quote = FALSE,row.names=FALSE,col.names=TRUE,sep="\t", qmethod = "escape")
 EOF
 
@@ -65,25 +62,26 @@ my $R = Statistics::R->new();
 
 ######Set the global argument value;
 #######Read the sample information
+print "Normalizing Sequence Deep...\n";
 open SAMPLE,$list_path or die "Failed to open sample list file $list_path: No such file or directory. Exiting";
 my @readCount;
 my $total = 0;
 my $i=0;
 
-print "Normalizing Sequence Deep...\n";
-
 while(<SAMPLE>){
 	chomp;
-	my ($sample,$condition) = split;
-	$readCount[$i] = readpipe("samtools view -q $mapq -c $sample");
-	$total += $readCount[$i]; 
+	my ($sample,$condition,$deep) = split;
+	$readCount[$i] = $deep;
+	$total += $deep; 
 	$sample{$sample} = $condition;
-	$con_count{$condition}++;
-	push @sample,$sample;
+	$condition[$i] = $condition;
+	$repNum{$condition}++;
+	$sample[$i] = $sample;
 	$i++;
 }
 
-@condition = keys %con_count;
+my %hash;
+@condition = grep { ++$hash{$_}<2 } @condition;
 my $average = $total/@readCount;
 for(my $i=0;$i<@readCount;$i++){
 	$size_factor[$i] = $average/$readCount[$i];
@@ -391,7 +389,7 @@ sub stat_retention{
 
 		my $j=0;
 		foreach my $k (@condition){
-			$reten_count{$k} /= $con_count{$k};
+			$reten_count{$k} /= $repNum{$k};
 			$total[$j] += $reten_count{$k};
 			push @count,$reten_count{$k};
 			$j++;
@@ -473,7 +471,7 @@ sub junction{
 
 		next if ($total_sum < $readCountMin*@sample || $zeroCount >= @sample/2);  ####Filtering
 		while(my ($k,$v) = each %sum){
-			$ave_junc{$key}->{$k} = round($v/$con_count{$k});
+			$ave_junc{$key}->{$k} = round($v/$repNum{$k});
 		}
 		print SPL "$chr\t$key";
 		for my $i (0..$#sample){
