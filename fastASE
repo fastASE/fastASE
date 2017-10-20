@@ -312,14 +312,14 @@ sub stat{
 	while (my ($key,$val) = each %$alter){
 		my @count;
 		my $junc_num = keys %$val;
-		if($junc_num >1){
+		if($junc_num >1 && $sum->{$key}->{$condition[0]} > 0 && $sum->{$key}->{$condition[1]} > 0){
 			while(my ($junc,$val2) = each %$val){
 				#####Global variable @condition;
 				my $count0 = $val2->{'count'}->{$condition[0]};
 				my $count1 = $val2->{'count'}->{$condition[1]};
 				push @count, $count0,$count1;
-				my $psi0 = ($sum->{$key}->{$condition[0]} == 0) ? 1/$junc_num : $count0/$sum->{$key}->{$condition[0]};
-				my $psi1 = ($sum->{$key}->{$condition[1]} == 0) ? 1/$junc_num : $count1/$sum->{$key}->{$condition[1]};
+				my $psi0 = $count0/$sum->{$key}->{$condition[0]};
+				my $psi1 = $count1/$sum->{$key}->{$condition[1]};
 				$val2->{'percent'}->{$condition[0]} = $psi0;
 				$val2->{'percent'}->{$condition[1]} = $psi1;
 				$deltapsi{$key} += abs($psi0-$psi1);
@@ -344,9 +344,7 @@ sub stat_retention{
 	my ($retention_r,$chr,$strand,$alter_r,$deltapsi_r,$pvalue_r) = @_;
 	while(my ($key,$val) = each %$retention_r){
 		my @sum = (0)x@sample;
-		my %reten_count;
-		$reten_count{$condition[0]} = 0;
-		$reten_count{$condition[1]} = 0;
+		my %reten_count = ($condition[0] => 0,$condition[1] => 0);
 		my $reten_num = 0;
 		my @count;
 		my @total;
@@ -441,13 +439,13 @@ sub junction{
 	}
 
 	foreach my $key (sort (keys %junc)){
-		my %sum;
-		my $zeroCount = 0;
+		my %sum = ($condition[0]=>0,$condition[1]=>0);
+		my %zeroCount = ($condition[0]=>0,$condition[1]=>0);
 		my $total_sum = 0;
 		for my $i (0..$#sample){
 			if(!defined ($junc{$key}->[$i])){
 				$junc{$key}->[$i] = 0;
-				$zeroCount++;
+				$zeroCount{$sample{$sample[$i]}}++;
 			}
 			else{
 				$junc{$key}->[$i] *= $size_factor[$i];
@@ -456,7 +454,7 @@ sub junction{
 			$total_sum += $junc{$key}->[$i];
 		}
 
-		next if ($total_sum < $readCountMin*@sample || $zeroCount >= @sample/2);  ####Filtering
+		next if ($total_sum < $readCountMin*@sample || ($zeroCount{$condition[0]} > 0 && $zeroCount{$condition[1]} > 0 ));  ####Filtering
 		while(my ($k,$v) = each %sum){
 			$ave_junc{$key}->{$k} = round($v/$repNum{$k});
 		}
