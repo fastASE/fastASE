@@ -20,13 +20,6 @@ my $gtf_path  = 'top_gene.gtf';
 my $out_dir = '';
 
 ##########Initial the global value;
-my %sample;
-my @sample;
-my @size_factor;
-my %repNum;
-my @condition;
-my %gene;
-my @gene;
 my %flag1 = ("+" => {"fr-secondstrand" => 99,"fr-firststrand" => 83,"fr-unstranded" => 0},
 		  "-" => {"fr-secondstrand" => 83,"fr-firststrand" => 99,"fr-unstranded" => 0});
 my %flag2 = ("+" => {"fr-secondstrand" => 147 ,"fr-firststrand" => 163,"fr-unstranded" => 0},
@@ -67,22 +60,24 @@ open SAMPLE,$list_path or die "Failed to open sample list file $list_path: No su
 my @readCount;
 my $total = 0;
 my $i=0;
-
+my @samCond;
+my @sample;
+my %repNum;
 while(<SAMPLE>){
 	chomp;
 	my ($sample,$condition,$deep) = split;
 	$readCount[$i] = $deep;
 	$total += $deep; 
-	$sample{$sample} = $condition;
-	$condition[$i] = $condition;
+	$samCond[$i] = $condition;
 	$repNum{$condition}++;
 	$sample[$i] = $sample;
 	$i++;
 }
 
 my %hash;
-@condition = grep { ++$hash{$_}<2 } @condition;
+my @condition = grep { ++$hash{$_}<2 } @samCond;
 my $average = $total/@readCount;
+my @size_factor;
 for(my $i=0;$i<@readCount;$i++){
 	$size_factor[$i] = $average/$readCount[$i];
 }
@@ -100,6 +95,7 @@ print OUT "gene_id\tgene_name\tchromosome\tstrand\tsplicingType\tfixSplicingSite
 
 
 
+my %gene;
 print scalar localtime,"\n";
 print "Merge transcripts...\n";
 ######Read the gene information
@@ -121,9 +117,7 @@ while(<FILE>){
 		}
 	}
 }
-
-
-@gene = keys %gene;
+my @gene = keys %gene;
 
 print scalar localtime,"\n";
 print "ASE Calculating...\n";
@@ -369,7 +363,7 @@ sub stat_retention{
 		}
 		for(my $i=0;$i<@sum;$i++){
 			$sum[$i] /= $reten_num*2/$size_factor[$i];
-			$reten_count{$sample{$sample[$i]}} += $sum[$i];
+			$reten_count{$samCond[$i]} += $sum[$i];
 		}
 
 		my $j=0;
@@ -445,12 +439,12 @@ sub junction{
 		for my $i (0..$#sample){
 			if(!defined ($junc{$key}->[$i])){
 				$junc{$key}->[$i] = 0;
-				$zeroCount{$sample{$sample[$i]}}++;
+				$zeroCount{$samCond[$i]}++;
 			}
 			else{
 				$junc{$key}->[$i] *= $size_factor[$i];
 			}
-			$sum{$sample{$sample[$i]}} += $junc{$key}->[$i];
+			$sum{$samCond[$i]} += $junc{$key}->[$i];
 			$total_sum += $junc{$key}->[$i];
 		}
 
