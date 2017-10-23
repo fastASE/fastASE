@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
-###All right reserved
+###All rights reserved
 ###Author: lyk
-###Updated 2017/8/21
+###Updated 2017/10/21
 #
 use warnings;
 use List::Util qw(first max maxstr min minstr reduce shuffle sum);
@@ -24,7 +24,6 @@ my %flag1 = ("+" => {"fr-secondstrand" => 99,"fr-firststrand" => 83,"fr-unstrand
 		  "-" => {"fr-secondstrand" => 83,"fr-firststrand" => 99,"fr-unstranded" => 0});
 my %flag2 = ("+" => {"fr-secondstrand" => 147 ,"fr-firststrand" => 163,"fr-unstranded" => 0},
 		  "-" => {"fr-secondstrand" => 163,"fr-firststrand" => 147,"fr-unstranded" => 0});
-
 #####SET the parameter
 &setArgv;
 
@@ -240,7 +239,7 @@ sub annoExon2{
 			$sum{"alter3pJunc\t$junc5c"}->{$condition[1]} += $val->{$condition[1]};
 		}
 		else{
-			$retention{"exonRetention\texon$exon_num3p"}->{"$junc3c->$junc5c"}->{'count'} = $val;
+			$retention{"IR\texon$exon_num3p"}->{"$junc3c->$junc5c"}->{'count'} = $val;
 		}
 	}
 
@@ -287,7 +286,7 @@ sub annoExon{
 			$sum{"alter3pJunc\t$junc5c"}->{$condition[1]} += $val->{$condition[1]};
 		}
 		else{
-			$retention{"exonRetention\texon$exon_num3p"}->{"$junc3c->$junc5c"}->{'count'} = $val;
+			$retention{"IR\texon$exon_num3p"}->{"$junc3c->$junc5c"}->{'count'} = $val;
 		}
 	}
 
