@@ -90,7 +90,7 @@ print SPL "Chrmosome\tStrand\tJunction\t",join( "\t",@sample),"\n";
 open FILE, "awk '(\$1 !~ /^\#|\_/ && \$2 != \"havana\"){print}' $gtf_path  |" or die "Failed to open gtf file $gtf_path: No such file or directory. Exiting";
 open MERGE, '>',$out_merge_path or die "Failed to open merge transcripts file $out_merge_path: No such file or directory. Exiting";
 open OUT,'>',$out_splice_path or die "Failed to alternative splicing file $out_splice_path: No such file or directory. Exiting";
-print OUT "gene_id\tgene_name\tchromosome\tstrand\tsplicingType\tfixSplicingSite\tpercentDiff\tpvalue\tqvalue\talterSplicingSite, readCount($condition[0]|$condition[1]), percentage($condition[0]|$condition[1])\n";
+print OUT "ase_type\tase_id\tgene_id\tgene_name\tchromosome\tstrand\tfixSplicingSite\tpercentDiff\tpvalue\tqvalue\talterSplicingSite, readCount($condition[0]|$condition[1]), percentage($condition[0]|$condition[1])\n";
 
 
 
@@ -120,6 +120,7 @@ my @gene = keys %gene;
 
 print scalar localtime,"\n";
 print "ASE Calculating...\n";
+my ($ID,$gene_tmp,$id_tmp,$type_tmp) = (0,0,0,0);
 for my $i (0..$#gene){
 	my $gene_id = $gene[$i];
 	my $val = $gene{$gene_id};
@@ -182,10 +183,14 @@ for my $i (0..$#gene){
 		($junc_ref) = &junction($chr,$strand,$merge[-1],$merge[0]);
 		($anno_ref,$dpsi_ref,$pval_ref) = &annoExon2($junc_ref,\@exon5p,\@exon3p,$chr,$strand);
 	}
-
-	foreach my $junc1 (sort (keys %$anno_ref)){
-		my $info = $anno_ref->{$junc1};
-		printf OUT ("%s\t%s\t%s\t%s\t%s\t%.3f\t%s\t%s\t",$gene_id,$gene_name,$chr,$strand,$junc1,$dpsi_ref->{$junc1},$pval_ref->{$junc1},0);
+	foreach my $type (sort (keys %$anno_ref)){
+		my ($ase_id,$ase_type,$junc1) = split /\t/,$type;
+		if($type_tmp ne $ase_type || $id_tmp ne $ase_id || $gene_id ne $gene_tmp){$ID++};
+		$type_tmp = $ase_type;
+		$id_tmp = $ase_id;
+		$gene_tmp = $gene_id;
+		my $info = $anno_ref->{$type};
+		printf OUT ("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%.3f\t%s\t%s\t",$ID,$ase_type,$gene_id,$gene_name,$chr,$strand,$junc1,$dpsi_ref->{$junc1},$pval_ref->{$junc1},0);
 		foreach my $k (sort (keys %$info)){
 			my $v = $info->{$k};
 			printf OUT ("%s, %d|%d, %.3f|%.3f; ", $k,$v->{'count'}->{$condition[0]},$v->{'count'}->{$condition[1]},$v->{'percent'}->{$condition[0]},$v->{'percent'}->{$condition[1]});
@@ -231,19 +236,19 @@ sub annoExon2{
 		my $junc3c = "$end3p:exon$exon_num3p:$shift3p";
 		my $junc5c = "$str5p:exon$exon_num5p:$shift5p";
 		if($exon_num3p ne $exon_num5p){
-			$alter{"alter5pJunc\t$junc3c"}->{$junc5c}->{'count'} = $val;
-			$alter{"alter3pJunc\t$junc5c"}->{$junc3c}->{'count'} = $val;
-			$sum{"alter5pJunc\t$junc3c"}->{$condition[0]} += $val->{$condition[0]};
-			$sum{"alter5pJunc\t$junc3c"}->{$condition[1]} += $val->{$condition[1]};
-			$sum{"alter3pJunc\t$junc5c"}->{$condition[0]} += $val->{$condition[0]};
-			$sum{"alter3pJunc\t$junc5c"}->{$condition[1]} += $val->{$condition[1]};
+			$alter{"5p\t$junc3c"}->{$junc5c}->{'count'} = $val;
+			$alter{"3p\t$junc5c"}->{$junc3c}->{'count'} = $val;
+			$sum{$junc3c}->{$condition[0]} += $val->{$condition[0]};
+			$sum{$junc3c}->{$condition[1]} += $val->{$condition[1]};
+			$sum{$junc5c}->{$condition[0]} += $val->{$condition[0]};
+			$sum{$junc5c}->{$condition[1]} += $val->{$condition[1]};
 		}
 		else{
-			$retention{"IR\texon$exon_num3p"}->{"$junc3c->$junc5c"}->{'count'} = $val;
+			$retention{"$exon_num3p\tRI\texon$exon_num3p"}->{"$junc3c->$junc5c"}->{'count'} = $val;
 		}
 	}
-
-	my ($alter_r,$deltapsi_r,$pvalue_r) = &stat(\%alter,\%sum);
+	my ($aseR) = &annoASE(\%alter);
+	my ($alter_r,$deltapsi_r,$pvalue_r) = &stat($aseR,\%sum);
 	($alter_r,$deltapsi_r,$pvalue_r) = &stat_retention(\%retention,$chr,$strand,$alter_r,$deltapsi_r,$pvalue_r);
 	return ($alter_r,$deltapsi_r,$pvalue_r);
 }
@@ -278,41 +283,155 @@ sub annoExon{
 		my $junc3c = "$end3p:exon$exon_num3p:$shift3p";
 		my $junc5c = "$str5p:exon$exon_num5p:$shift5p";
 		if($exon_num3p ne $exon_num5p){
-			$alter{"alter5pJunc\t$junc3c"}->{$junc5c}->{'count'} = $val;
-			$alter{"alter3pJunc\t$junc5c"}->{$junc3c}->{'count'} = $val;
-			$sum{"alter5pJunc\t$junc3c"}->{$condition[0]} += $val->{$condition[0]};
-			$sum{"alter5pJunc\t$junc3c"}->{$condition[1]} += $val->{$condition[1]};
-			$sum{"alter3pJunc\t$junc5c"}->{$condition[0]} += $val->{$condition[0]};
-			$sum{"alter3pJunc\t$junc5c"}->{$condition[1]} += $val->{$condition[1]};
+			$alter{"5p\t$junc3c"}->{$junc5c}->{'count'} = $val;
+			$alter{"3p\t$junc5c"}->{$junc3c}->{'count'} = $val;
+			$sum{$junc3c}->{$condition[0]} += $val->{$condition[0]};
+			$sum{$junc3c}->{$condition[1]} += $val->{$condition[1]};
+			$sum{$junc5c}->{$condition[0]} += $val->{$condition[0]};
+			$sum{$junc5c}->{$condition[1]} += $val->{$condition[1]};
 		}
 		else{
-			$retention{"IR\texon$exon_num3p"}->{"$junc3c->$junc5c"}->{'count'} = $val;
+			$retention{"$exon_num3p\tRI\texon$exon_num3p"}->{"$junc3c->$junc5c"}->{'count'} = $val;
 		}
 	}
-
-	my ($alter_r,$deltapsi_r,$pvalue_r) = &stat(\%alter,\%sum);
+	my ($aseR) = &annoASE(\%alter);
+	my ($alter_r,$deltapsi_r,$pvalue_r) = &stat($aseR,\%sum);
 	($alter_r,$deltapsi_r,$pvalue_r) = &stat_retention(\%retention,$chr,$strand,$alter_r,$deltapsi_r,$pvalue_r);
 	return ($alter_r,$deltapsi_r,$pvalue_r);
 }
 
 
+sub annoASE{
+	my ($alterR) = @_;
+	my %ase;
+	my @cse;
+	my %exon3p;
+	my %exon5p;
+	my %eachASE;
+	my $aseNum = 0;
+	while(my($key,$val) = each %$alterR){
+		my $junc_num = keys %$val;
+		if($junc_num > 2){
+			my ($link,$end) = split /\t/,$key;
+			push @cse, (split /\:/,$end)[1];
+			if ($link =~ /3p/){
+				$ase{"0\tCSE\t$end"} = $val;
+			}
+			else{
+				$ase{"0\tCSE\t$end"} = $val;
+			}
+			foreach my $junc (keys %$val){
+				#while(my ($junc,$val2) = each %$val){
+				push @cse, (split /\:/,$junc)[1];
+			}
+		}
+		elsif($junc_num == 2){
+			my ($link,$end) = split /\t/,$key;
+			$eachASE{$end} = $val;
+			if($link =~ /3p/){
+				push @{$exon3p{$end}},(split /\:/,$end)[1];
+				foreach my $junc (keys %$val){
+					#while(my ($junc,$val2) = each %$val){
+					push @{$exon3p{$end}}, (split /\:/,$junc)[1];
+				}
+			}
+			else{
+				push @{$exon5p{$end}},(split /\:/,$end)[1];
+				foreach my $junc (keys %$val){
+					#while(my ($junc,$val2) = each %$val){
+					push @{$exon5p{$end}}, (split /\:/,$junc)[1];
+				}
+			}
+		}
+	}
+	while(my($key,$val) = each %exon3p){
+		my $k =0;
+		foreach my $exon (@$val){
+			if(grep {$_ eq $exon} @cse){$k++;}
+		}
+		if($k >= 2){
+			$ase{"0\tCSE\t$key"} = $eachASE{$key};
+			delete $exon3p{$key};
+		}
+	}
+	while(my($key,$val) = each %exon5p){
+		my $k =0;
+		foreach my $exon (@$val){
+			if(grep {$_ eq $exon} @cse){$k++;}
+		}
+		if($k >= 2){
+			$ase{"0\tCSE\t$key"} = $eachASE{$key};
+			delete $exon5p{$key};
+		}
+	}
+
+	while(my($key,$val) = each %exon3p){
+		my $j =0;
+		while(my($key2,$val2) = each %exon5p){
+			my $i = 0;
+			foreach my $exon (@$val2){
+				if(grep {$_ eq $exon} @$val){$i++;}
+			}
+			if($i == 3){
+				$aseNum++;
+				$ase{"$aseNum\tSE\t$key"} = $eachASE{$key};
+				$ase{"$aseNum\tSE\t$key2"} = $eachASE{$key2};
+				delete $exon5p{$key2};
+				$j++;
+			}
+			elsif($i == 2){
+				$aseNum++;
+				$ase{"$aseNum\tMXE\t$key"} = $eachASE{$key};
+				$ase{"$aseNum\tMXE\t$key2"} = $eachASE{$key2};
+				delete $exon5p{$key2};
+				$j++;
+			}
+		}
+		if($j == 0){
+			my %hash;
+			if(grep { ++$hash{$_} > 1 } @$val){
+				$aseNum++;
+				$ase{"$aseNum\tA3SS\t$key"} = $eachASE{$key};
+			}
+			else{
+				$aseNum++;
+				$ase{"$aseNum\tAFE\t$key"} = $eachASE{$key};
+			}
+		}
+	}
+
+	while(my($key,$val) = each %exon5p){
+		my %hash;
+		if(grep { ++$hash{$_} > 1 } @$val){
+			$aseNum++;
+			$ase{"$aseNum\tA5SS\t$key"} = $eachASE{$key};
+		}
+		else{
+			$aseNum++;		
+			$ase{"$aseNum\tALE\t$key"} = $eachASE{$key};
+		}
+	}
+	return (\%ase);
+}
+
 
 sub stat{
-	my ($alter,$sum) = @_;
+	my ($aseR,$sumR) = @_;
 	my %deltapsi;####return value;
 	my %pvalue;	 ####return value;
 
-	while (my ($key,$val) = each %$alter){
+	while (my ($type,$val) = each %$aseR){
+		my ($key) = (split /\t/,$type)[2];
 		my @count;
-		my $junc_num = keys %$val;
-		if($junc_num >1 && $sum->{$key}->{$condition[0]} > 0 && $sum->{$key}->{$condition[1]} > 0){
+		if($sumR->{$key}->{$condition[0]} > 0 && $sumR->{$key}->{$condition[1]} > 0){
 			while(my ($junc,$val2) = each %$val){
 				#####Global variable @condition;
 				my $count0 = $val2->{'count'}->{$condition[0]};
 				my $count1 = $val2->{'count'}->{$condition[1]};
+				#next if ($count0+$count1) < $readCountMin*2;
 				push @count, $count0,$count1;
-				my $psi0 = $count0/$sum->{$key}->{$condition[0]};
-				my $psi1 = $count1/$sum->{$key}->{$condition[1]};
+				my $psi0 = $count0/$sumR->{$key}->{$condition[0]};
+				my $psi1 = $count1/$sumR->{$key}->{$condition[1]};
 				$val2->{'percent'}->{$condition[0]} = $psi0;
 				$val2->{'percent'}->{$condition[1]} = $psi1;
 				$deltapsi{$key} += abs($psi0-$psi1);
@@ -325,11 +444,10 @@ sub stat{
 			$pvalue{$key} = $R->get('pvalue');	####get the pvalue from R
 		}
 		else{
-			delete $alter->{$key};
+			delete $aseR->{$type};
 		}
-
 	}
-	return ($alter,\%deltapsi,\%pvalue);
+	return ($aseR,\%deltapsi,\%pvalue);
 }
 
 
@@ -374,23 +492,24 @@ sub stat_retention{
 		}
 
 		if ($total[0] >0 && $total[1] >0){
+			my ($id,$type,$exon) = split /\t/,$key;
 			while(my($key2,$val2) = each %$val){
 				my $count0 = $val2->{'count'}->{$condition[0]};
 				my $count1 = $val2->{'count'}->{$condition[1]};
 				push @count, $count0,$count1;
 				my $psi0 = $count0/$total[0];
 				my $psi1 = $count1/$total[1];
-				$alter_r->{$key}->{$key2}->{'count'}->{$condition[0]} = $count0;
-				$alter_r->{$key}->{$key2}->{'count'}->{$condition[1]} = $count1;
-				$alter_r->{$key}->{$key2}->{'percent'}->{$condition[0]} = $psi0;
-				$alter_r->{$key}->{$key2}->{'percent'}->{$condition[1]} = $psi1;
-				$deltapsi_r->{$key} += abs($psi0-$psi1);
+				$alter_r->{"$key\t$exon"}->{$key2}->{'count'}->{$condition[0]} = $count0;
+				$alter_r->{"$key\t$exon"}->{$key2}->{'count'}->{$condition[1]} = $count1;
+				$alter_r->{"$key\t$exon"}->{$key2}->{'percent'}->{$condition[0]} = $psi0;
+				$alter_r->{"$key\t$exon"}->{$key2}->{'percent'}->{$condition[1]} = $psi1;
+				$deltapsi_r->{$exon} += abs($psi0-$psi1);
 			}
-			$deltapsi_r->{$key} /=2;    #####Set the largest value to 100%;
+			$deltapsi_r->{$exon} /=2;    #####Set the largest value to 100%;
 
 			$R->set( 'x', \@count );####set the value in R
 			$R->run($cmds);			####calculate the pvalue in R
-			$pvalue_r->{$key} = $R->get('pvalue');	####get the pvalue from R
+			$pvalue_r->{$exon} = $R->get('pvalue');	####get the pvalue from R
 		}
 	}
 	return ($alter_r,$deltapsi_r,$pvalue_r);
@@ -446,7 +565,6 @@ sub junction{
 			$sum{$samCond[$i]} += $junc{$key}->[$i];
 			$total_sum += $junc{$key}->[$i];
 		}
-
 		next if ($total_sum < $readCountMin*@sample || ($zeroCount{$condition[0]} > 0 && $zeroCount{$condition[1]} > 0 ));  ####Filtering
 		while(my ($k,$v) = each %sum){
 			$ave_junc{$key}->{$k} = round($v/$repNum{$k});
