@@ -260,6 +260,14 @@ chr20	ensembl_havana_MERGE	exon	62310178	62310311	.	-	.	gene_id "ENSG00000130702
 chr20	ensembl_havana_MERGE	exon	62309988	62310081	.	-	.	gene_id "ENSG00000130702"; exon_number "78"; gene_name "LAMA5";
 chr20	ensembl_havana_MERGE	exon	62309716	62309835	.	-	.	gene_id "ENSG00000130702"; exon_number "79"; gene_name "LAMA5";
 chr20	ensembl_havana_MERGE	exon	62309065	62309475	.	-	.	gene_id "ENSG00000130702"; exon_number "80"; gene_name "LAMA5";
+chr11	ensembl_havana_MERGE	gene	62546835	62433546	.	-	.	gene_id "ENSG00000124942"; gene_name "AHNAK";
+chr11	ensembl_havana_MERGE	exon	62546660	62546835	.	-	.	gene_id "ENSG00000124942"; exon_number "1"; gene_name "AHNAK";
+chr11	ensembl_havana_MERGE	exon	62536469	62536567	.	-	.	gene_id "ENSG00000124942"; exon_number "2"; gene_name "AHNAK";
+chr11	ensembl_havana_MERGE	exon	62535945	62536098	.	-	.	gene_id "ENSG00000124942"; exon_number "3"; gene_name "AHNAK";
+chr11	ensembl_havana_MERGE	exon	62535003	62535190	.	-	.	gene_id "ENSG00000124942"; exon_number "4"; gene_name "AHNAK";
+chr11	ensembl_havana_MERGE	exon	62515905	62534074	.	-	.	gene_id "ENSG00000124942"; exon_number "5"; gene_name "AHNAK";
+chr11	ensembl_havana_MERGE	exon	62491732	62491831	.	-	.	gene_id "ENSG00000124942"; exon_number "6"; gene_name "AHNAK";
+chr11	ensembl_havana_MERGE	exon	62433546	62433891	.	-	.	gene_id "ENSG00000124942"; exon_number "7"; gene_name "AHNAK";
 chr6	ensembl_havana_MERGE	gene	31834908	31839766	.	+	.	gene_id "ENSG00000204387"; gene_name "C6orf48";
 chr6	ensembl_havana_MERGE	exon	31834908	31835200	.	+	.	gene_id "ENSG00000204387"; exon_number "1"; gene_name "C6orf48";
 chr6	ensembl_havana_MERGE	exon	31835411	31835455	.	+	.	gene_id "ENSG00000204387"; exon_number "2"; gene_name "C6orf48";

@@ -193,7 +193,7 @@ for my $i (0..$#gene){
 		printf OUT ("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%.3f\t%s\t%s\t",$ID,$ase_type,$gene_id,$gene_name,$chr,$strand,$junc1,$dpsi_ref->{$junc1},$pval_ref->{$junc1},0);
 		foreach my $k (sort (keys %$info)){
 			my $v = $info->{$k};
-			printf OUT ("%s, %d|%d, %.3f|%.3f; ", $k,$v->{'count'}->{$condition[0]},$v->{'count'}->{$condition[1]},$v->{'percent'}->{$condition[0]},$v->{'percent'}->{$condition[1]});
+			printf OUT ("%s,%d|%d,%.3f|%.3f;", $k,$v->{'count'}->{$condition[0]},$v->{'count'}->{$condition[1]},$v->{'percent'}->{$condition[0]},$v->{'percent'}->{$condition[1]});
 		}
 		print OUT "\n";
 	}
@@ -211,7 +211,7 @@ sub annoExon2{
 	my ($junc_ref,$exon5p,$exon3p,$chr,$strand) = @_;
 	my %alter;   ####return value;
 	my %sum;
-	my %retention;
+	my %reten;
 	while (my ($key,$val) = each %$junc_ref){
 		my ($str5p,$end3p) = split /\-/,$key;
 		my $max_index = $#{$exon5p};
@@ -244,12 +244,13 @@ sub annoExon2{
 			$sum{$junc5c}->{$condition[1]} += $val->{$condition[1]};
 		}
 		else{
-			$retention{"$exon_num3p\tRI\texon$exon_num3p"}->{"$junc3c->$junc5c"}->{'count'} = $val;
+			$reten{$exon_num3p}->{"$junc5c,$junc3c"}->{'count'} = $val;
 		}
 	}
 	my ($aseR) = &annoASE(\%alter);
 	my ($alter_r,$deltapsi_r,$pvalue_r) = &stat($aseR,\%sum);
-	($alter_r,$deltapsi_r,$pvalue_r) = &stat_retention(\%retention,$chr,$strand,$alter_r,$deltapsi_r,$pvalue_r);
+	my ($retention_r) = &retention(\%reten);
+	($alter_r,$deltapsi_r,$pvalue_r) = &stat_retention($retention_r,$chr,$strand,$alter_r,$deltapsi_r,$pvalue_r);
 	return ($alter_r,$deltapsi_r,$pvalue_r);
 }
 
@@ -258,7 +259,7 @@ sub annoExon{
 	my ($junc_ref,$exon5p,$exon3p,$chr,$strand) = @_;
 	my %alter;   ####return value;
 	my %sum;
-	my %retention;
+	my %reten;
 	while (my ($key,$val) = each %$junc_ref){
 		my ($end3p,$str5p) = split /\-/,$key;
 		my $max_index = $#{$exon5p};
@@ -291,16 +292,64 @@ sub annoExon{
 			$sum{$junc5c}->{$condition[1]} += $val->{$condition[1]};
 		}
 		else{
-			$retention{"$exon_num3p\tRI\texon$exon_num3p"}->{"$junc3c->$junc5c"}->{'count'} = $val;
+			$reten{$exon_num3p}->{"$junc3c,$junc5c"}->{'count'} = $val;
 		}
 	}
 	my ($aseR) = &annoASE(\%alter);
 	my ($alter_r,$deltapsi_r,$pvalue_r) = &stat($aseR,\%sum);
-	($alter_r,$deltapsi_r,$pvalue_r) = &stat_retention(\%retention,$chr,$strand,$alter_r,$deltapsi_r,$pvalue_r);
+	my ($retention_r) = &retention(\%reten);
+	($alter_r,$deltapsi_r,$pvalue_r) = &stat_retention($retention_r,$chr,$strand,$alter_r,$deltapsi_r,$pvalue_r);
 	return ($alter_r,$deltapsi_r,$pvalue_r);
 }
 
-
+sub retention{
+	my $reten = $_[0];
+	my %retention;
+	my $k=0;
+	while(my ($exon,$val) = each %$reten){
+		my %stat;
+		my $j = 0;
+		foreach my $key (sort keys %$val){
+			my ($junc1,$junc2) = split /,/,$key;
+			my ($str) = split /:/,$junc1;
+			my ($end) = split /:/,$junc2;
+			if($j == 0){
+				$stat{$str} = $end;
+			}
+			else{
+				my $i = 0;
+				while(my ($st,$en) = each %stat){
+					if($str<=$en && $end>=$st){
+						$i++;
+						if($end >$en){
+							$stat{$st} = $end;
+						}
+						if($str < $st){
+							$stat{$str} = $end;
+							delete $stat{$st};
+						}
+					}
+				}
+				if($i == 0){
+					$stat{$str} = $end;
+				}
+			}
+			$j++;
+		}
+		while(my ($str,$end) = each %stat){
+			while(my ($junc,$count) = each %$val){
+				my ($junc1,$junc2) = split /,/,$junc;
+				my ($str2) = split /:/,$junc1;
+				my ($end2) = split /:/,$junc2;
+				if($str<=$str2 && $end >= $end2){
+					$retention{"$k\tRI\texon$exon:$str-$end"}->{"$junc1->$junc2"} = $count;
+				}
+			}
+			$k++;
+		}
+	}
+	return (\%retention);
+}
 sub annoASE{
 	my ($alterR) = @_;
 	my %ase;
@@ -321,7 +370,6 @@ sub annoASE{
 				$ase{"0\tCSE\t$end"} = $val;
 			}
 			foreach my $junc (keys %$val){
-				#while(my ($junc,$val2) = each %$val){
 				push @cse, (split /\:/,$junc)[1];
 			}
 		}
@@ -331,14 +379,12 @@ sub annoASE{
 			if($link =~ /3p/){
 				push @{$exon3p{$end}},(split /\:/,$end)[1];
 				foreach my $junc (keys %$val){
-					#while(my ($junc,$val2) = each %$val){
 					push @{$exon3p{$end}}, (split /\:/,$junc)[1];
 				}
 			}
 			else{
 				push @{$exon5p{$end}},(split /\:/,$end)[1];
 				foreach my $junc (keys %$val){
-					#while(my ($junc,$val2) = each %$val){
 					push @{$exon5p{$end}}, (split /\:/,$junc)[1];
 				}
 			}
