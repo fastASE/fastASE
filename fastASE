@@ -591,9 +591,7 @@ sub junction{
 					$junc{"$end2-$str3"}->[$i]++;
 				}
 			}
-
 		}
-
 	}
 
 	foreach my $key (sort (keys %junc)){
